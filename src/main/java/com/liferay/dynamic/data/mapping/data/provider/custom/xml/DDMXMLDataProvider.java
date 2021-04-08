@@ -29,8 +29,11 @@ import com.liferay.portal.kernel.util.Validator;
 
 import java.io.StringReader;
 
+import java.text.NumberFormat;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -76,8 +79,9 @@ public class DDMXMLDataProvider implements DDMDataProvider {
 	}
 
 	protected DDMDataProviderResponse createDDMDataProviderResponse(
-		DDMXMLDataProviderSettings ddmXMLDataProviderSettings,
-		Document document) {
+			DDMXMLDataProviderSettings ddmXMLDataProviderSettings,
+			Document document)
+		throws Exception {
 
 		DDMDataProviderResponse.Builder builder =
 			DDMDataProviderResponse.Builder.newBuilder();
@@ -85,22 +89,41 @@ public class DDMXMLDataProvider implements DDMDataProvider {
 		for (DDMDataProviderOutputParametersSettings outputParameterSettings :
 				ddmXMLDataProviderSettings.outputParameters()) {
 
+			String id = outputParameterSettings.outputParameterId();
+			String type = outputParameterSettings.outputParameterType();
+
 			NodeList nodeList = document.getElementsByTagName(
 				outputParameterSettings.outputParameterPath());
 
-			List<KeyValuePair> keyValuePairs = new ArrayList<>();
+			if (Objects.equals(type, "list")) {
+				List<KeyValuePair> keyValuePairs = new ArrayList<>();
 
-			for (int i = 0; i < nodeList.getLength(); i++) {
-				Node node = nodeList.item(i);
+				for (int i = 0; i < nodeList.getLength(); i++) {
+					Node node = nodeList.item(i);
+
+					String nodeTextContent = node.getTextContent();
+
+					keyValuePairs.add(
+						new KeyValuePair(nodeTextContent, nodeTextContent));
+				}
+
+				builder = builder.withOutput(id, keyValuePairs);
+			}
+			else if (Objects.equals(type, "number")) {
+				Node node = nodeList.item(0);
+
+				NumberFormat numberFormat = NumberFormat.getInstance();
+
+				builder = builder.withOutput(
+					id, numberFormat.parse(node.getTextContent()));
+			}
+			else if (Objects.equals(type, "text")) {
+				Node node = nodeList.item(0);
 
 				String nodeTextContent = node.getTextContent();
 
-				keyValuePairs.add(
-					new KeyValuePair(nodeTextContent, nodeTextContent));
+				builder = builder.withOutput(id, nodeTextContent);
 			}
-
-			builder = builder.withOutput(
-				outputParameterSettings.outputParameterId(), keyValuePairs);
 		}
 
 		return builder.build();
